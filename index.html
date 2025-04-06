@@ -6,7 +6,9 @@
     <title>Tea Protocol - Transaction Counter (Tea Sepolia Testnet)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js"></script>
-    <script type="module" src="https://esm.sh/@web3modal/ethers@4.1.10"></script> <style>
+    <script type="module" src="https://esm.sh/@web3modal/ethers@4.1.10"></script>
+
+    <style>
         body { font-family: 'Inter', sans-serif; }
         html { background-color: #f7fafc; }
         #connectWalletBtn { white-space: nowrap; }
@@ -114,50 +116,61 @@
         let connectedAddress = null;
 
         function updateUIBasedOnConnection() {
-            if (web3modal) {
-                const state = web3modal.getState();
-                const account = state.selectedAddress;
-                // *** UPDATED: Simplified check for connection ***
-                const isConnected = !!account; // Directly check if an account address exists
+            // *** ADDED LOGGING START ***
+            console.log("--- updateUIBasedOnConnection called ---");
+            if (!web3modal) {
+                console.log("Web3Modal instance not ready yet.");
+                return;
+            }
+            const state = web3modal.getState();
+            console.log("Current Web3Modal State:", JSON.stringify(state, null, 2)); // Log the whole state
+            const account = state.selectedAddress;
+            console.log("Selected Address (account):", account);
+            // *** ADDED LOGGING END ***
 
-                if (isConnected) {
-                    connectedAddress = account; // Store address
-                    const shortAddress = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
-                    if(connectionStatusDiv) connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
-                    if(connectWalletBtn) connectWalletBtn.textContent = 'Disconnect'; // Set button text to Disconnect
-                } else {
-                    connectedAddress = null; // Clear address
-                    // Only update if web3modal initialized successfully
-                    if(connectionStatusDiv && connectWalletBtn && !connectWalletBtn.disabled) {
-                        connectionStatusDiv.textContent = 'Status: Not Connected';
-                        connectWalletBtn.textContent = 'Connect Wallet'; // Set button text to Connect
-                    }
-                }
+            // Simplified check for connection
+            const isConnected = !!account;
+            console.log("Is Connected Check:", isConnected); // Log the result of the check
+
+            if (isConnected) {
+                connectedAddress = account; // Store address
+                const shortAddress = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
+                if(connectionStatusDiv) connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
+                if(connectWalletBtn) connectWalletBtn.textContent = 'Disconnect'; // Set button text to Disconnect
+                console.log("UI Updated to: Connected / Disconnect");
             } else {
-                 if(connectionStatusDiv) connectionStatusDiv.textContent = 'Status: Wallet Connect Error';
-                 if(connectWalletBtn) connectWalletBtn.disabled = true;
+                connectedAddress = null; // Clear address
+                // Only update if web3modal initialized successfully
+                if(connectionStatusDiv && connectWalletBtn && !connectWalletBtn.disabled) {
+                    connectionStatusDiv.textContent = 'Status: Not Connected';
+                    connectWalletBtn.textContent = 'Connect Wallet'; // Set button text to Connect
+                    console.log("UI Updated to: Not Connected / Connect Wallet");
+                }
             }
         }
 
         // Subscribe only if web3modal was initialized successfully
         if (web3modal) {
             web3modal.subscribeState(updateUIBasedOnConnection);
-            // Update UI shortly after load
-            setTimeout(updateUIBasedOnConnection, 300);
+            // Update UI shortly after load (increased timeout slightly)
+            console.log("Setting initial UI update timeout (500ms)");
+            setTimeout(updateUIBasedOnConnection, 500);
         }
 
         // Handle Connect/Disconnect Button Click
         if(connectWalletBtn && !connectWalletBtn.disabled) {
             connectWalletBtn.addEventListener('click', () => {
+                console.log("Connect/Disconnect button clicked. Connected Address:", connectedAddress); // Log click
                 if (web3modal) {
-                    // Use the 'connectedAddress' variable which is updated by subscribeState
                     if (connectedAddress) {
-                        web3modal.disconnect(); // Disconnect if connected
+                        console.log("Calling web3modal.disconnect()");
+                        web3modal.disconnect();
                     } else {
-                        web3modal.open(); // Open modal if not connected
+                        console.log("Calling web3modal.open()");
+                        web3modal.open();
                     }
                 } else {
-                    console.error("Web3Modal not initialized, cannot open.");
+                    console.error("Web3Modal not initialized, cannot open/disconnect.");
                 }
             });
         }
@@ -197,6 +210,7 @@
         }
 
         // --- Main Logic: Check Button Click ---
+        // (Rest of the check button logic remains the same)
         if(checkButton) {
             checkButton.addEventListener('click', async () => {
                 let addressToCheck = addressInput?.value.trim();
