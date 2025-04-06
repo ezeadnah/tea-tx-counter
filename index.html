@@ -7,13 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js" integrity="sha512-DXQhlt9OmeEY79J6zPzBvHk5j1z8o+wFkRLwGSj27jTqIOhN/uG2QG7jXlPHq3OCAF7GdJ/uU/3EZ7q1A0XphQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
-        /* Custom styles if needed */
+        /* Using Inter font as preferred */
         body {
-            font-family: 'Inter', sans-serif; /* Using Inter font as preferred */
+            font-family: 'Inter', sans-serif;
         }
-        /* Add a subtle background pattern or color */
+        /* Light gray background */
         html {
-             background-color: #f7fafc; /* Light gray background */
+             background-color: #f7fafc;
         }
     </style>
      <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,41 +48,54 @@
         <div id="resultArea" class="text-center p-4 bg-gray-50 rounded-lg min-h-[60px] flex items-center justify-center border border-gray-200">
             <span class="text-gray-500">Enter an address and click check.</span>
         </div>
-         </div>
+
+        <div id="explorerLinkArea" class="text-center mt-4 text-sm min-h-[20px]">
+            </div>
+    </div>
 
     <script>
-        // Get references to DOM elements
+        // --- DOM Element References ---
         const addressInput = document.getElementById('walletAddress');
         const checkButton = document.getElementById('checkButton');
         const resultArea = document.getElementById('resultArea');
+        const explorerLinkArea = document.getElementById('explorerLinkArea'); // Area for the explorer link
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonIcon = document.getElementById('button-icon');
-        const buttonText = checkButton.querySelector('span');
+        const buttonText = checkButton.querySelector('span'); // Text part of the button
 
-        // *** CORRECTED RPC URL for Tea Sepolia Testnet via Alchemy ***
-        const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public'; // Updated URL
+        // --- Configuration ---
+        // RPC URL for the Tea Sepolia Testnet (via Alchemy public endpoint)
+        const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public';
+        // Base URL for the Tea Sepolia block explorer
+        const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz';
 
-        // Initialize ethers provider
+        // --- Ethers.js Provider Initialization ---
         let provider;
         try {
-             // Use the updated RPC URL
+            // Create a provider instance connected to the specified RPC endpoint
             provider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
-            console.log("JsonRpcProvider initialized successfully for Tea Sepolia (Alchemy)."); // Updated log
+            console.log("JsonRpcProvider initialized successfully for Tea Sepolia (Alchemy).");
         } catch (error) {
+            // Handle errors during provider initialization (e.g., network issues, CORS)
             console.error("Failed to initialize JsonRpcProvider:", error);
             resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain connection.</span>`;
-            checkButton.disabled = true; // Disable button if provider fails
+            explorerLinkArea.innerHTML = ''; // Ensure link area is clear on init error
+            checkButton.disabled = true; // Disable the button if connection fails
         }
 
-        // Function to show loading state
+        // --- UI Helper Function: Show Loading State ---
         function showLoading(isLoading) {
             if (isLoading) {
+                // Show loading state: update button text, hide icon, show spinner, disable button
                 buttonText.textContent = 'Checking...';
                 buttonIcon.classList.add('hidden');
                 loadingSpinner.classList.remove('hidden');
                 checkButton.disabled = true;
+                // Clear previous results and links
                 resultArea.innerHTML = `<span class="text-gray-500">Fetching data...</span>`;
+                explorerLinkArea.innerHTML = '';
             } else {
+                // Restore normal button state
                 buttonText.textContent = 'Check Transaction Count';
                 buttonIcon.classList.remove('hidden');
                 loadingSpinner.classList.add('hidden');
@@ -90,46 +103,71 @@
             }
         }
 
-        // Add event listener to the button
+        // --- Main Logic: Event Listener for Button Click ---
         checkButton.addEventListener('click', async () => {
+            // Get the address from input, removing leading/trailing whitespace
             const address = addressInput.value.trim();
 
+            // Clear previous results and explorer link before starting
             resultArea.innerHTML = '';
+            explorerLinkArea.innerHTML = '';
 
+            // --- Input Validation ---
+            // Use ethers.js utility to check if the input is a valid address format
             if (!ethers.isAddress(address)) {
                 resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid wallet address format.</span>`;
-                return;
+                return; // Exit if the address format is invalid
             }
 
-            showLoading(true);
+            // --- Fetch Data ---
+            showLoading(true); // Activate loading UI
 
             try {
+                // Ensure the provider was initialized correctly
                 if (!provider) {
                     throw new Error("Blockchain provider not initialized.");
                 }
 
+                // Fetch the transaction count (nonce) for the address from the blockchain
                 const txCount = await provider.getTransactionCount(address);
 
+                // --- Display Results ---
+                // Show the fetched transaction count
                 resultArea.innerHTML = `
                     <span class="text-lg font-semibold text-gray-800">Transaction Count:</span>
                     <span class="text-lg font-bold text-indigo-600 ml-2">${txCount.toString()}</span>
                 `;
 
+                // Construct the URL for the block explorer
+                const explorerUrl = `${TEA_EXPLORER_BASE_URL}/address/${address}`;
+                // Create and display the link to the block explorer
+                explorerLinkArea.innerHTML = `
+                    <a href="${explorerUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 hover:underline">
+                        View on Tea Sepolia Explorer
+                    </a>
+                `;
+
             } catch (error) {
+                // --- Error Handling ---
                 console.error("Error fetching transaction count:", error);
                 resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not fetch data. Check console or try again.</span>`;
+                explorerLinkArea.innerHTML = ''; // Ensure link area is clear on fetch error
+
+                // Provide more specific feedback for common network/RPC errors
                 if (error.message.includes("provider") || error.message.includes("NetworkError") || error.code === 'NETWORK_ERROR' || error.message.includes('fetch failed')) {
                      resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Network issue. Could not reach the Tea Sepolia network RPC.</span>`;
                 }
             } finally {
-                showLoading(false);
+                // --- Cleanup ---
+                showLoading(false); // Deactivate loading UI regardless of success or failure
             }
         });
 
-         // Optional: Allow pressing Enter in the input field to trigger the check
+        // --- Enhancement: Allow Enter Key ---
+        // Add event listener to the input field to trigger the check on pressing Enter
         addressInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
-                checkButton.click();
+                checkButton.click(); // Simulate a button click
             }
         });
 
