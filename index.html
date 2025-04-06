@@ -59,8 +59,8 @@
     </div>
 
     <script type="module">
-        // Import Web3Modal functions directly using esm.sh CDN
-        import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
+        // *** Import watchAddress along with other functions ***
+        import { createWeb3Modal, defaultConfig, watchAddress } from 'https://esm.sh/@web3modal/ethers@4.1.10';
 
         // --- DOM Element References ---
         const addressInput = document.getElementById('walletAddress');
@@ -105,6 +105,7 @@
                 }
             });
             console.log("Web3Modal initialized via ESM import.");
+            // Initial status set here, will be updated by watchAddress
             if(connectionStatusDiv) connectionStatusDiv.textContent = 'Status: Not Connected';
         } catch (initError) {
             console.error("Error initializing Web3Modal:", initError);
@@ -113,56 +114,46 @@
         }
 
         // --- Web3Modal State & Event Handling ---
-        let connectedAddress = null;
+        let connectedAddress = null; // Keep track of the address locally
 
-        function updateUIBasedOnConnection() {
-            // *** ADDED LOGGING START ***
-            console.log("--- updateUIBasedOnConnection called ---");
-            if (!web3modal) {
-                console.log("Web3Modal instance not ready yet.");
-                return;
-            }
-            const state = web3modal.getState();
-            console.log("Current Web3Modal State:", JSON.stringify(state, null, 2)); // Log the whole state
-            const account = state.selectedAddress;
-            console.log("Selected Address (account):", account);
-            // *** ADDED LOGGING END ***
+        // *** MODIFIED: Function now accepts address directly ***
+        // This function updates the UI based on the address provided by watchAddress
+        function updateUIBasedOnAddress(address) {
+            console.log("watchAddress callback triggered. Address:", address); // Log when watcher runs
+            connectedAddress = address; // Update local variable
 
-            // Simplified check for connection
-            const isConnected = !!account;
-            console.log("Is Connected Check:", isConnected); // Log the result of the check
-
-            if (isConnected) {
-                connectedAddress = account; // Store address
-                const shortAddress = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
+            if (address) { // If address exists, user is connected
+                const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
                 if(connectionStatusDiv) connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
-                if(connectWalletBtn) connectWalletBtn.textContent = 'Disconnect'; // Set button text to Disconnect
+                if(connectWalletBtn) connectWalletBtn.textContent = 'Disconnect';
                 console.log("UI Updated to: Connected / Disconnect");
-            } else {
-                connectedAddress = null; // Clear address
-                // Only update if web3modal initialized successfully
+            } else { // If address is undefined/null, user is disconnected
                 if(connectionStatusDiv && connectWalletBtn && !connectWalletBtn.disabled) {
                     connectionStatusDiv.textContent = 'Status: Not Connected';
-                    connectWalletBtn.textContent = 'Connect Wallet'; // Set button text to Connect
+                    connectWalletBtn.textContent = 'Connect Wallet';
                     console.log("UI Updated to: Not Connected / Connect Wallet");
                 }
             }
         }
 
-        // Subscribe only if web3modal was initialized successfully
+        // *** Use watchAddress instead of subscribeState ***
         if (web3modal) {
-            web3modal.subscribeState(updateUIBasedOnConnection);
-            // Update UI shortly after load (increased timeout slightly)
-            console.log("Setting initial UI update timeout (500ms)");
-            setTimeout(updateUIBasedOnConnection, 500);
+            // watchAddress calls the callback immediately with the current address,
+            // and then again whenever it changes.
+            const unwatch = watchAddress(updateUIBasedOnAddress);
+            console.log("Subscribed to address changes via watchAddress.");
+            // No need for setTimeout anymore, watchAddress handles initial state.
+
+            // Note: You could call `unwatch()` later if you need to clean up the watcher,
+            // but for this simple app, it's likely not necessary.
         }
 
-        // Handle Connect/Disconnect Button Click
+        // Handle Connect/Disconnect Button Click (Logic remains the same)
         if(connectWalletBtn && !connectWalletBtn.disabled) {
             connectWalletBtn.addEventListener('click', () => {
-                console.log("Connect/Disconnect button clicked. Connected Address:", connectedAddress); // Log click
+                console.log("Connect/Disconnect button clicked. Current connectedAddress variable:", connectedAddress);
                 if (web3modal) {
-                    if (connectedAddress) {
+                    if (connectedAddress) { // Check our local variable
                         console.log("Calling web3modal.disconnect()");
                         web3modal.disconnect();
                     } else {
@@ -175,7 +166,7 @@
             });
         }
 
-        // --- Ethers.js Provider for LOOKUPS ---
+        // --- Ethers.js Provider for LOOKUPS (No changes needed here) ---
         let lookupProvider;
         if (typeof ethers !== 'undefined') {
             try {
@@ -209,8 +200,7 @@
             }
         }
 
-        // --- Main Logic: Check Button Click ---
-        // (Rest of the check button logic remains the same)
+        // --- Main Logic: Check Button Click (No changes needed here) ---
         if(checkButton) {
             checkButton.addEventListener('click', async () => {
                 let addressToCheck = addressInput?.value.trim();
