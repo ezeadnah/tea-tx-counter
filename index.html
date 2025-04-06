@@ -72,7 +72,7 @@
         import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
         console.log("Web3Modal import statement processed.");
 
-        // --- DOM Element References (Get main ones needed early) ---
+        // --- DOM Element References ---
         const addressInput = document.getElementById('walletAddress');
         const checkButton = document.getElementById('checkButton');
         const resultArea = document.getElementById('resultArea');
@@ -80,15 +80,14 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonIcon = document.getElementById('button-icon');
         const buttonText = checkButton?.querySelector('span');
-        // Connect button and status div references will be fetched inside the update function
+        // Connect button and status div references fetched later or inside functions
 
         // --- Configuration ---
         const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public';
         const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz';
         const projectId = '44e9663828baee914c5165ae2ee07cc1';
 
-        // Check Project ID early
-        const initialStatusDiv = document.getElementById('connectionStatus'); // Get ref for initial error msg
+        const initialStatusDiv = document.getElementById('connectionStatus');
         if (!projectId && initialStatusDiv) {
             console.error("WalletConnect Project ID is missing!");
             initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Setup Error: Missing Project ID!</span>';
@@ -121,7 +120,7 @@
         } catch (initError) {
             console.error("Error during Web3Modal initialization:", initError);
             if(initialStatusDiv) initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Failed to init WalletConnect. Check console.</span>';
-            const connectBtn = document.getElementById('connectWalletBtn'); // Try to get ref for disabling
+            const connectBtn = document.getElementById('connectWalletBtn');
             if(connectBtn) connectBtn.disabled = true;
         }
 
@@ -132,15 +131,12 @@
         // Function to update the UI based on the address
         function updateUIBasedOnAddress(address) {
             console.log("updateUIBasedOnAddress called. Address:", address);
-            connectedAddress = address; // Update local variable
+            connectedAddress = address;
 
-            // *** Get element references INSIDE the function ***
             const connectWalletBtn = document.getElementById('connectWalletBtn');
             const connectionStatusDiv = document.getElementById('connectionStatus');
-
-            // Ensure elements exist before trying to update
             if (!connectWalletBtn || !connectionStatusDiv) {
-                console.error("UI elements for connection status not found!");
+                console.error("UI elements for connection status not found in updateUIBasedOnAddress!");
                 return;
             }
 
@@ -150,13 +146,12 @@
                 connectWalletBtn.textContent = 'Disconnect';
                 console.log("UI Updated to: Connected / Disconnect");
             } else { // Disconnected state
-                userProvider = null; // Clear provider on disconnect
-                if (!connectWalletBtn.disabled) { // Check disabled status
+                userProvider = null;
+                if (!connectWalletBtn.disabled) {
                     connectionStatusDiv.textContent = 'Status: Not Connected';
                     connectWalletBtn.textContent = 'Connect Wallet';
                     console.log("UI Updated to: Not Connected / Connect Wallet");
                 } else {
-                    // If button is disabled (likely due to init error), reflect that
                     connectionStatusDiv.textContent = 'Status: Not Connected (Error?)';
                 }
             }
@@ -164,13 +159,16 @@
 
         // Function to handle connection logic after modal interaction
         async function handleConnection() {
+             // *** ADDED LOGGING and TRY/CATCH ***
+             console.log("handleConnection START");
              if (!web3modal) {
                  console.error("handleConnection called but web3modal not ready.");
                  return;
              }
-             console.log("Attempting to get wallet provider...");
-             try {
+             try { // Wrap core logic
+                 console.log("Attempting to get wallet provider...");
                  userProvider = await web3modal.getWalletProvider(); // EIP-1193 provider
+
                  if (userProvider) {
                      console.log("Wallet provider obtained:", userProvider);
                      // Ensure ethers is loaded before using it
@@ -179,21 +177,25 @@
                          updateUIBasedOnAddress(null); // Reset UI
                          return;
                      }
+                     console.log("Creating ethers.BrowserProvider...");
                      const browserProvider = new ethers.BrowserProvider(userProvider);
+                     console.log("Getting signer...");
                      const signer = await browserProvider.getSigner();
+                     console.log("Getting address from signer...");
                      const address = await signer.getAddress();
                      console.log("Obtained address via provider/signer:", address);
                      updateUIBasedOnAddress(address); // Update UI with the fetched address
                  } else {
-                     console.log("No wallet provider found after modal close.");
+                     console.log("No wallet provider found after modal close (likely disconnected or closed without selection).");
                      updateUIBasedOnAddress(null); // Ensure UI reflects disconnection
                  }
              } catch (error) {
-                 console.error("Error getting wallet provider or address:", error);
+                 console.error("Error inside handleConnection:", error); // Log specific error
                  updateUIBasedOnAddress(null); // Reset UI on error
-                 const statusDiv = document.getElementById('connectionStatus'); // Get ref for error msg
+                 const statusDiv = document.getElementById('connectionStatus');
                  if(statusDiv) statusDiv.innerHTML = `<span class="text-red-600 font-medium">Error connecting wallet.</span>`;
              }
+             console.log("handleConnection END");
         }
 
         // Use subscribeEvents to detect modal close
@@ -202,11 +204,10 @@
                 console.log("Setting up subscribeEvents...");
                 const unsubscribeEvents = web3modal.subscribeEvents(async (event) => {
                     console.log("Web3Modal Event:", event.type, event.data);
-                    // Try to get address info when modal closes
                     if (event.type === 'MODAL_CLOSE') {
-                         console.log("Modal closed, attempting to handle connection state...");
-                         // Add a small delay in case provider isn't ready *immediately* on close
-                         setTimeout(handleConnection, 100);
+                         console.log("Modal closed event detected.");
+                         // *** REMOVED setTimeout ***
+                         handleConnection(); // Call handler directly
                     }
                 });
                 console.log("subscribeEvents setup complete.");
@@ -223,14 +224,13 @@
              if(statusDiv) statusDiv.textContent = 'Status: Wallet Init Failed';
         }
 
-
         // Handle Connect/Disconnect Button Click
-        const connectBtn = document.getElementById('connectWalletBtn'); // Get button ref once
+        const connectBtn = document.getElementById('connectWalletBtn');
         if(connectBtn) {
              if (web3modal) {
-                 connectBtn.disabled = false; // Enable if modal is ready
+                 connectBtn.disabled = false;
              } else {
-                 connectBtn.disabled = true; // Keep disabled if modal failed
+                 connectBtn.disabled = true;
              }
 
             connectBtn.addEventListener('click', () => {
@@ -239,16 +239,14 @@
                     if (connectedAddress) {
                         console.log("Calling web3modal.disconnect()");
                         web3modal.disconnect().then(() => {
-                            // Explicitly update UI after disconnect promise resolves
                             updateUIBasedOnAddress(null);
                         }).catch(err => {
                             console.error("Error during disconnect:", err);
-                            updateUIBasedOnAddress(null); // Still attempt to update UI
+                            updateUIBasedOnAddress(null);
                         });
                     } else {
                         console.log("Calling web3modal.open()");
                         web3modal.open();
-                        // Connection logic handled by subscribeEvents -> handleConnection
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open/disconnect.");
@@ -259,7 +257,6 @@
         } else {
             console.error("Connect Wallet button not found.");
         }
-
 
         // --- Ethers.js Provider for LOOKUPS ---
         let lookupProvider;
@@ -280,7 +277,6 @@
 
         // --- UI Helper Function: Show Loading State ---
         function showLoading(isLoading) {
-             // Added checks for element existence
              if (isLoading) {
                 if(buttonText) buttonText.textContent = 'Checking...';
                 if(buttonIcon) buttonIcon.classList.add('hidden');
@@ -298,7 +294,7 @@
 
         // --- Main Logic: Check Button Click ---
         if(checkButton) {
-            checkButton.disabled = !lookupProvider; // Disable if provider failed
+            checkButton.disabled = !lookupProvider;
             checkButton.addEventListener('click', async () => {
                 console.log("Check button clicked.");
                 if (typeof ethers === 'undefined') {
