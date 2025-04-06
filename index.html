@@ -6,7 +6,7 @@
     <title>Tea Protocol - Transaction Counter (Tea Sepolia Testnet)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js"></script>
-    <script type="module" src="https://unpkg.com/@web3modal/ethers@4.1.10/dist/ethers.min.js"></script>
+    <script type="module" src="https://unpkg.com/@web3modal/ethers@4.1.10/dist/ethers.js"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -24,7 +24,8 @@
         <div class="text-center mb-4">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Tea Protocol</h1>
             <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mt-1">Transaction Counter</h2>
-            <p class="text-sm text-gray-500 mt-2">Check transaction count (nonce) on Tea Sepolia</p> </div>
+            <p class="text-sm text-gray-500 mt-2">Check transaction count (nonce) on Tea Sepolia</p>
+        </div>
 
         <div class="text-center mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <button id="connectWalletBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out text-sm">
@@ -66,105 +67,100 @@
         const explorerLinkArea = document.getElementById('explorerLinkArea');
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonIcon = document.getElementById('button-icon');
-        const buttonText = checkButton.querySelector('span');
+        const buttonText = checkButton?.querySelector('span'); // Added optional chaining
         const connectWalletBtn = document.getElementById('connectWalletBtn');
         const connectionStatusDiv = document.getElementById('connectionStatus');
 
         // --- Configuration (Using User Provided Values) ---
-        const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public'; // Matches user input
-        const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz'; // Matches user input
+        const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public';
+        const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz';
 
         // *** Web3Modal Configuration ***
-        // 1. Project ID from User
-        const projectId = '44e9663828baee914c5165ae2ee07cc1'; // <-- UPDATED Project ID
-        // Basic check if projectId is set (it is now, but good practice)
-        if (!projectId) {
+        const projectId = '44e9663828baee914c5165ae2ee07cc1';
+        if (!projectId && connectionStatusDiv) { // Added check for connectionStatusDiv
             console.error("WalletConnect Project ID is missing!");
             connectionStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Setup Error: Missing Project ID!</span>';
         }
 
-        // 2. Define chain metadata (Using User Provided Values)
         const teaSepolia = {
-            chainId: 10218, // <-- UPDATED Chain ID
-            name: 'Tea Sepolia', // <-- UPDATED Network Name
-            currency: 'TEA', // <-- UPDATED Currency Symbol
-            explorerUrl: TEA_EXPLORER_BASE_URL, // Uses constant above
-            rpcUrl: TEA_SEPOLIA_RPC_URL // Uses constant above
+            chainId: 10218,
+            name: 'Tea Sepolia',
+            currency: 'TEA',
+            explorerUrl: TEA_EXPLORER_BASE_URL,
+            rpcUrl: TEA_SEPOLIA_RPC_URL
         };
 
-        // 3. Configure Web3Modal metadata (Appears on WalletConnect Modal)
         const metadata = {
             name: 'Tea TX Counter',
             description: 'Check transaction counts on Tea Sepolia',
-            url: window.location.href, // Your dApp URL
-            icons: ['https://placehold.co/60x60/indigo/white?text=TEA'] // Replace with your dApp icon URL if available
+            url: window.location.href,
+            icons: ['https://placehold.co/60x60/indigo/white?text=TEA']
         };
 
-        // 4. Create Ethers config (using Web3Modal's ethers adapter)
+        // --- Web3Modal Initialization ---
         let web3modal;
         let ethersConfig;
-        // Ensure Web3ModalEthers library is loaded from the script tag
+        // Check if the Web3Modal library object exists on the window
         if (window.Web3ModalEthers) {
-             ethersConfig = window.Web3ModalEthers.defaultConfig({
-                metadata, // Your dApp metadata
-                /* Optional: Specify ethers version if needed, defaults match script tag */
-                // ethersVersion: '6.11.1',
-            });
+             try { // Added try-catch around initialization
+                 ethersConfig = window.Web3ModalEthers.defaultConfig({
+                    metadata,
+                });
 
-            // 5. Create Web3Modal instance
-            web3modal = window.Web3ModalEthers.createWeb3Modal({
-                ethersConfig, // Ethers configuration
-                chains: [teaSepolia], // Define the chains supported (just Tea Sepolia here)
-                projectId, // Your WalletConnect Cloud Project ID
-                enableAnalytics: true, // Optional analytics
-                themeMode: 'light', // Optional theme
-                themeVariables: { // Optional theme customization
-                    '--w3m-color-mix': '#6366F1',
-                    '--w3m-color-mix-strength': 40,
-                    '--w3m-border-radius-master': '8px',
-                }
-            });
-
-            console.log("Web3Modal initialized with provided config.");
-
+                web3modal = window.Web3ModalEthers.createWeb3Modal({
+                    ethersConfig,
+                    chains: [teaSepolia],
+                    projectId,
+                    enableAnalytics: true,
+                    themeMode: 'light',
+                    themeVariables: {
+                        '--w3m-color-mix': '#6366F1',
+                        '--w3m-color-mix-strength': 40,
+                        '--w3m-border-radius-master': '8px',
+                    }
+                });
+                console.log("Web3Modal initialized with provided config.");
+             } catch (initError) {
+                 console.error("Error initializing Web3Modal:", initError);
+                 if(connectionStatusDiv) connectionStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Failed to init WalletConnect library.</span>';
+                 if(connectWalletBtn) connectWalletBtn.disabled = true;
+             }
         } else {
-            // Error if the Web3Modal library didn't load
             console.error("Web3ModalEthers library not loaded!");
-            connectionStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Wallet connection library failed to load.</span>';
+            if(connectionStatusDiv) connectionStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Wallet connection library failed to load. Check console.</span>';
             if(connectWalletBtn) connectWalletBtn.disabled = true;
         }
 
-
         // --- Web3Modal State & Event Handling ---
-        let connectedAddress = null; // Variable to store the connected address
+        let connectedAddress = null;
 
-        // Function to update the UI based on connection status
         function updateUIBasedOnConnection() {
+            // Ensure web3modal is initialized before accessing state
             if (web3modal) {
-                const state = web3modal.getState(); // Get current Web3Modal state
-                const account = state.selectedAddress; // Get the selected address
-                // Determine if connected (modal closed and address selected)
+                const state = web3modal.getState();
+                const account = state.selectedAddress;
                 const isConnected = state.open === false && !!account;
 
                 if (isConnected) {
-                    connectedAddress = account; // Store the address
-                    // Display shortened address
+                    connectedAddress = account;
                     const shortAddress = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
-                    connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
-                    connectWalletBtn.textContent = 'Disconnect'; // Change button text
+                    if(connectionStatusDiv) connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
+                    if(connectWalletBtn) connectWalletBtn.textContent = 'Disconnect';
                 } else {
-                    connectedAddress = null; // Clear stored address
-                    connectionStatusDiv.textContent = 'Status: Not Connected';
-                    connectWalletBtn.textContent = 'Connect Wallet';
+                    connectedAddress = null;
+                    if(connectionStatusDiv) connectionStatusDiv.textContent = 'Status: Not Connected';
+                    if(connectWalletBtn) connectWalletBtn.textContent = 'Connect Wallet';
                 }
+            } else {
+                 // Handle case where web3modal might not be ready yet or failed init
+                 if(connectionStatusDiv) connectionStatusDiv.textContent = 'Status: Wallet Connect Error';
+                 if(connectWalletBtn) connectWalletBtn.disabled = true;
             }
         }
 
-        // Subscribe to Web3Modal state changes
         if (web3modal) {
             web3modal.subscribeState(updateUIBasedOnConnection);
-            // Update UI shortly after load to catch initial state
-            setTimeout(updateUIBasedOnConnection, 150);
+            setTimeout(updateUIBasedOnConnection, 200); // Increased delay slightly
         }
 
         // Handle Connect/Disconnect Button Click
@@ -172,9 +168,9 @@
             connectWalletBtn.addEventListener('click', () => {
                 if (web3modal) {
                     if (connectedAddress) {
-                        web3modal.disconnect(); // Disconnect if already connected
+                        web3modal.disconnect();
                     } else {
-                        web3modal.open(); // Open modal if not connected
+                        web3modal.open();
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open.");
@@ -182,40 +178,35 @@
             });
         }
 
-
-        // --- Ethers.js Provider for LOOKUPS (using static RPC) ---
-        // This provider is used specifically for the getTransactionCount call,
-        // allowing lookup of *any* address, not just the connected one.
+        // --- Ethers.js Provider for LOOKUPS ---
         let lookupProvider;
-        // Ensure ethers library is loaded before creating provider
         if (typeof ethers !== 'undefined') {
             try {
                 lookupProvider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
                 console.log("Lookup JsonRpcProvider initialized successfully.");
             } catch (error) {
                 console.error("Failed to initialize Lookup JsonRpcProvider:", error);
-                resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain lookup connection.</span>`;
+                if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain lookup connection.</span>`;
                 if(checkButton) checkButton.disabled = true;
             }
         } else {
              console.error("Ethers.js library not loaded for lookup provider.");
-             resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) failed to load.</span>`;
+             if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) failed to load.</span>`;
              if(checkButton) checkButton.disabled = true;
         }
 
-
-        // --- UI Helper Function: Show Loading State for Check Button ---
+        // --- UI Helper Function: Show Loading State ---
         function showLoading(isLoading) {
              if (isLoading) {
-                buttonText.textContent = 'Checking...';
+                if(buttonText) buttonText.textContent = 'Checking...';
                 if(buttonIcon) buttonIcon.classList.add('hidden');
                 if(loadingSpinner) loadingSpinner.classList.remove('hidden');
                 if(checkButton) checkButton.disabled = true;
-                resultArea.innerHTML = `<span class="text-gray-500">Fetching data...</span>`;
-                explorerLinkArea.innerHTML = '';
+                if(resultArea) resultArea.innerHTML = `<span class="text-gray-500">Fetching data...</span>`;
+                if(explorerLinkArea) explorerLinkArea.innerHTML = '';
             } else {
-                buttonText.textContent = 'Check Transaction Count';
-                 if(buttonIcon) buttonIcon.classList.remove('hidden');
+                if(buttonText) buttonText.textContent = 'Check Transaction Count';
+                if(buttonIcon) buttonIcon.classList.remove('hidden');
                 if(loadingSpinner) loadingSpinner.classList.add('hidden');
                 if(checkButton) checkButton.disabled = false;
             }
@@ -224,33 +215,27 @@
         // --- Main Logic: Check Button Click ---
         if(checkButton) {
             checkButton.addEventListener('click', async () => {
-                // Get address from input, fallback to connected address if input is empty
-                let addressToCheck = addressInput.value.trim();
+                let addressToCheck = addressInput?.value.trim(); // Optional chaining
                 if (!addressToCheck && connectedAddress) {
                      console.log("Input empty, using connected address:", connectedAddress);
                      addressToCheck = connectedAddress;
                 } else if (!addressToCheck) {
-                    // No address entered and none connected
-                    resultArea.innerHTML = `<span class="text-orange-600 font-medium">Please enter an address or connect wallet.</span>`;
+                    if(resultArea) resultArea.innerHTML = `<span class="text-orange-600 font-medium">Please enter an address or connect wallet.</span>`;
                     return;
                 }
 
-                // Clear previous results before starting check
-                resultArea.innerHTML = '';
-                explorerLinkArea.innerHTML = '';
+                if(resultArea) resultArea.innerHTML = '';
+                if(explorerLinkArea) explorerLinkArea.innerHTML = '';
 
-                // Validate the address format
                 if (typeof ethers === 'undefined' || !ethers.isAddress(addressToCheck)) {
-                    resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid wallet address format or library not loaded.</span>`;
+                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid wallet address format or library not loaded.</span>`;
                     return;
                 }
 
-                showLoading(true); // Show loading indicator
+                showLoading(true);
 
                 try {
-                    // Ensure the lookup provider is available
                     if (!lookupProvider) {
-                        // Attempt to re-initialize if failed earlier but ethers is now loaded
                          if (typeof ethers !== 'undefined') {
                              lookupProvider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
                              console.log("Lookup JsonRpcProvider re-initialized successfully.");
@@ -259,40 +244,35 @@
                          }
                     }
 
-                    // Fetch the transaction count using the lookup provider
                     const txCount = await lookupProvider.getTransactionCount(addressToCheck);
 
-                    // Display the result
                     const shortAddressChecked = `${addressToCheck.substring(0, 6)}...${addressToCheck.substring(addressToCheck.length - 4)}`;
-                    resultArea.innerHTML = `
+                    if(resultArea) resultArea.innerHTML = `
                         <span class="text-lg font-semibold text-gray-800">Transaction Count:</span>
                         <span class="text-lg font-bold text-indigo-600 ml-2">${txCount.toString()}</span>
                         <p class="text-xs text-gray-500 mt-1">(Address: ${shortAddressChecked})</p>
                     `;
 
-                    // Create and display the explorer link
                     const explorerUrl = `${TEA_EXPLORER_BASE_URL}/address/${addressToCheck}`;
-                    explorerLinkArea.innerHTML = `
+                    if(explorerLinkArea) explorerLinkArea.innerHTML = `
                         <a href="${explorerUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 hover:underline">
                             View on Tea Sepolia Explorer
                         </a>
                     `;
 
                 } catch (error) {
-                    // Handle errors during the fetch process
                     console.error("Error during check:", error);
                     const shortAddressChecked = addressToCheck ? `${addressToCheck.substring(0, 6)}...` : '';
-                    resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not fetch data for ${shortAddressChecked}. Check console.</span>`;
-                    explorerLinkArea.innerHTML = ''; // Clear link on error
+                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not fetch data for ${shortAddressChecked}. Check console.</span>`;
+                    if(explorerLinkArea) explorerLinkArea.innerHTML = '';
 
-                    // Provide more specific error messages
                     if (error.message.includes("provider") || error.message.includes("NetworkError") || (error.code && error.code === 'NETWORK_ERROR') || (error.message && error.message.includes('fetch failed'))) {
-                         resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Network issue reaching RPC for lookup.</span>`;
+                         if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Network issue reaching RPC for lookup.</span>`;
                     } else if (error instanceof ReferenceError) {
-                         resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) unavailable for lookup.</span>`;
+                         if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) unavailable for lookup.</span>`;
                     }
                 } finally {
-                    showLoading(false); // Hide loading indicator
+                    showLoading(false);
                 }
             });
         }
@@ -301,7 +281,7 @@
         if(addressInput) {
             addressInput.addEventListener('keypress', function (e) {
                 if (e.key === 'Enter') {
-                    if(checkButton) checkButton.click(); // Trigger check on Enter key press
+                    if(checkButton) checkButton.click();
                 }
             });
         }
