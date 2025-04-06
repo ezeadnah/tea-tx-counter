@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tea Protocol - Transaction Counter (Tea Sepolia Testnet)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js" integrity="sha512-DXQhlt9OmeEY79J6zPzBvHk5j1z8o+wFkRLwGSj27jTqIOhN/uG2QG7jXlPHq3OCAF7GdJ/uU/3EZ7q1A0XphQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js"></script>
     <style>
         /* Using Inter font as preferred */
         body {
@@ -71,17 +71,28 @@
 
         // --- Ethers.js Provider Initialization ---
         let provider;
-        try {
-            // Create a provider instance connected to the specified RPC endpoint
-            provider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
-            console.log("JsonRpcProvider initialized successfully for Tea Sepolia (Alchemy).");
-        } catch (error) {
-            // Handle errors during provider initialization (e.g., network issues, CORS)
-            console.error("Failed to initialize JsonRpcProvider:", error);
-            resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain connection.</span>`;
-            explorerLinkArea.innerHTML = ''; // Ensure link area is clear on init error
-            checkButton.disabled = true; // Disable the button if connection fails
+        // Wrap initialization in a check to ensure 'ethers' is loaded
+        // This check might run before the script fully loads, so errors inside might still occur
+        // but the ReferenceError during initialization should be resolved if the script loads.
+        if (typeof ethers !== 'undefined') {
+            try {
+                // Create a provider instance connected to the specified RPC endpoint
+                provider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
+                console.log("JsonRpcProvider initialized successfully for Tea Sepolia (Alchemy).");
+            } catch (error) {
+                // Handle errors during provider initialization (e.g., network issues, CORS)
+                console.error("Failed to initialize JsonRpcProvider:", error);
+                resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain connection. Check console.</span>`;
+                explorerLinkArea.innerHTML = ''; // Ensure link area is clear on init error
+                if(checkButton) checkButton.disabled = true; // Disable the button if connection fails
+            }
+        } else {
+            // This message might appear if the script somehow still fails to load
+             console.error("Ethers.js library not loaded.");
+             resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) failed to load.</span>`;
+             if(checkButton) checkButton.disabled = true;
         }
+
 
         // --- UI Helper Function: Show Loading State ---
         function showLoading(isLoading) {
@@ -114,9 +125,10 @@
 
             // --- Input Validation ---
             // Use ethers.js utility to check if the input is a valid address format
-            if (!ethers.isAddress(address)) {
-                resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid wallet address format.</span>`;
-                return; // Exit if the address format is invalid
+            // Add check if ethers itself is defined before using it
+            if (typeof ethers === 'undefined' || !ethers.isAddress(address)) {
+                resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid wallet address format or library not loaded.</span>`;
+                return; // Exit if the address format is invalid or ethers is missing
             }
 
             // --- Fetch Data ---
@@ -125,7 +137,13 @@
             try {
                 // Ensure the provider was initialized correctly
                 if (!provider) {
-                    throw new Error("Blockchain provider not initialized.");
+                     // Try to re-initialize provider if it failed earlier but ethers is now loaded
+                     if (typeof ethers !== 'undefined') {
+                         provider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
+                         console.log("JsonRpcProvider re-initialized successfully.");
+                     } else {
+                        throw new Error("Blockchain provider not initialized and ethers library missing.");
+                     }
                 }
 
                 // Fetch the transaction count (nonce) for the address from the blockchain
@@ -149,13 +167,15 @@
 
             } catch (error) {
                 // --- Error Handling ---
-                console.error("Error fetching transaction count:", error);
+                console.error("Error during check:", error);
                 resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not fetch data. Check console or try again.</span>`;
                 explorerLinkArea.innerHTML = ''; // Ensure link area is clear on fetch error
 
                 // Provide more specific feedback for common network/RPC errors
-                if (error.message.includes("provider") || error.message.includes("NetworkError") || error.code === 'NETWORK_ERROR' || error.message.includes('fetch failed')) {
+                if (error.message.includes("provider") || error.message.includes("NetworkError") || (error.code && error.code === 'NETWORK_ERROR') || (error.message && error.message.includes('fetch failed'))) {
                      resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Network issue. Could not reach the Tea Sepolia network RPC.</span>`;
+                } else if (error instanceof ReferenceError) {
+                     resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library (ethers.js) seems unavailable.</span>`;
                 }
             } finally {
                 // --- Cleanup ---
@@ -167,7 +187,8 @@
         // Add event listener to the input field to trigger the check on pressing Enter
         addressInput.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
-                checkButton.click(); // Simulate a button click
+                // Ensure button exists before clicking (robustness)
+                if(checkButton) checkButton.click(); // Simulate a button click
             }
         });
 
