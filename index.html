@@ -10,7 +10,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         html { background-color: #f7fafc; }
-        #connectWalletBtn { white-space: nowrap; }
         /* Ensure body takes at least full viewport height */
         body { display: flex; flex-direction: column; min-height: 100vh; }
         /* Push footer down */
@@ -23,21 +22,16 @@
 <body class="bg-gray-100">
 
     <div class="content-wrapper p-4">
-        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-lg">
-            <div class="text-center mb-4">
-                <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Tea Protocol</h1>
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-lg relative"> <div class="absolute top-4 right-4">
+                <button id="newConnectBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-md shadow-md transition duration-200 ease-in-out text-sm whitespace-nowrap">
+                    Connect Wallet
+                </button>
+            </div>
+            <div class="text-center mb-8 pt-8"> <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Tea Protocol</h1>
                 <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mt-1">Transaction Counter</h2>
                 <p class="text-sm text-gray-500 mt-2">Check transaction count (nonce) on Tea Sepolia</p>
             </div>
 
-            <div class="text-center mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <button id="connectWalletBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out text-sm">
-                    Connect Wallet
-                </button>
-                <div id="connectionStatus" class="text-xs text-gray-600 mt-2 truncate">
-                    Status: Initializing...
-                </div>
-            </div>
             <div class="mb-4">
                 <label for="walletAddress" class="block text-sm font-medium text-gray-700 mb-1">Wallet Address to Check</label>
                 <input type="text" id="walletAddress" name="walletAddress" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter Tea Sepolia address or connect wallet">
@@ -60,13 +54,16 @@
 
             <div id="explorerLinkArea" class="text-center mt-4 text-sm min-h-[20px]">
                 </div>
-        </div> </div> <footer class="text-center py-6 mt-auto"> <div class="flex justify-center items-center space-x-4">
+        </div> </div> <footer class="text-center py-6 mt-auto">
+        <div class="flex justify-center items-center space-x-4">
             <a href="https://x.com/ezeadnah" target="_blank" rel="noopener noreferrer" title="Twitter / X Profile" class="text-gray-500 hover:text-gray-800 transition duration-150 ease-in-out">
                 <img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/twitter.svg" alt="Twitter / X Icon" class="w-6 h-6 inline-block"/>
-                <span class="sr-only">Twitter / X</span> </a>
+                <span class="sr-only">Twitter / X</span>
+            </a>
             <a href="https://github.com/ezeadnah" target="_blank" rel="noopener noreferrer" title="GitHub Profile" class="text-gray-500 hover:text-gray-800 transition duration-150 ease-in-out">
                  <img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/github.svg" alt="GitHub Icon" class="w-6 h-6 inline-block"/>
-                 <span class="sr-only">GitHub</span> </a>
+                 <span class="sr-only">GitHub</span>
+            </a>
         </div>
         <p class="text-xs text-gray-500 mt-2">
             &copy; 2025 Made with Love by Eze Adnah
@@ -74,18 +71,13 @@
     </footer>
     <script type="module">
         // --- Global Error Handlers ---
-        window.addEventListener('error', function(event) {
-            console.error('Global Error:', event.message, event.filename, event.lineno, event.colno, event.error);
-        });
-        window.addEventListener('unhandledrejection', function(event) {
-            console.error('Unhandled Promise Rejection:', event.reason);
-        });
+        window.addEventListener('error', function(event) { console.error('Global Error:', event); });
+        window.addEventListener('unhandledrejection', function(event) { console.error('Unhandled Promise Rejection:', event.reason); });
 
-        // Import ethers and Web3Modal functions as modules
+        // Import ethers and Web3Modal functions
         console.log("Attempting to import ethers...");
         import { ethers } from 'https://esm.sh/ethers@6.11.1';
         console.log("ethers import statement processed.");
-
         console.log("Attempting to import Web3Modal...");
         import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
         console.log("Web3Modal import statement processed.");
@@ -97,28 +89,18 @@
         const explorerLinkArea = document.getElementById('explorerLinkArea');
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonIcon = document.getElementById('button-icon');
-        const buttonText = checkButton?.querySelector('span');
-        // Connect button and status div references fetched inside update function
+        // Connect button reference fetched inside update function and listener setup
 
         // --- Configuration ---
         const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public';
         const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz';
         const projectId = '44e9663828baee914c5165ae2ee07cc1';
 
-        const initialStatusDiv = document.getElementById('connectionStatus');
-        if (!projectId && initialStatusDiv) {
-            console.error("WalletConnect Project ID is missing!");
-            initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Setup Error: Missing Project ID!</span>';
-        }
+        // Check Project ID early (log only)
+        if (!projectId) console.error("WalletConnect Project ID is missing!");
 
-        const teaSepolia = {
-            chainId: 10218, name: 'Tea Sepolia', currency: 'TEA',
-            explorerUrl: TEA_EXPLORER_BASE_URL, rpcUrl: TEA_SEPOLIA_RPC_URL
-        };
-        const metadata = {
-            name: 'Tea TX Counter', description: 'Check transaction counts on Tea Sepolia',
-            url: window.location.href, icons: ['https://placehold.co/60x60/indigo/white?text=TEA']
-        };
+        const teaSepolia = { chainId: 10218, name: 'Tea Sepolia', currency: 'TEA', explorerUrl: TEA_EXPLORER_BASE_URL, rpcUrl: TEA_SEPOLIA_RPC_URL };
+        const metadata = { name: 'Tea TX Counter', description: 'Check transaction counts on Tea Sepolia', url: window.location.href, icons: ['https://placehold.co/60x60/indigo/white?text=TEA'] };
 
         // --- Web3Modal Initialization ---
         let web3modal;
@@ -126,97 +108,71 @@
             console.log("Initializing ethersConfig...");
             const ethersConfig = defaultConfig({ metadata });
             console.log("Initializing createWeb3Modal...");
-            web3modal = createWeb3Modal({
-                ethersConfig, chains: [teaSepolia], projectId,
-                enableAnalytics: true, themeMode: 'light',
-                themeVariables: {
-                    '--w3m-color-mix': '#6366F1', '--w3m-color-mix-strength': 40,
-                    '--w3m-border-radius-master': '8px',
-                }
-            });
+            web3modal = createWeb3Modal({ ethersConfig, chains: [teaSepolia], projectId, enableAnalytics: true, themeMode: 'light', themeVariables: { '--w3m-color-mix': '#6366F1', '--w3m-color-mix-strength': 40, '--w3m-border-radius-master': '8px' } });
             console.log("Web3Modal instance created successfully.");
         } catch (initError) {
             console.error("Error during Web3Modal initialization:", initError);
-            if(initialStatusDiv) initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Failed to init WalletConnect. Check console.</span>';
-            const connectBtn = document.getElementById('connectWalletBtn');
+            const connectBtn = document.getElementById('newConnectBtn'); // Target new button
             if(connectBtn) connectBtn.disabled = true;
+            // Optionally update status text if element exists
+            const statusDiv = document.getElementById('connectionStatus'); // This ID no longer exists - remove status updates or add a new status element if desired
+            // if(statusDiv) statusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Failed to init WalletConnect.</span>';
         }
 
         // --- Web3Modal State & Event Handling ---
         let connectedAddress = null;
         let userProvider = null;
 
-        // Function to update the UI based on the address
-        function updateUIBasedOnAddress(address) {
-            console.log("updateUIBasedOnAddress called. Address:", address);
-            connectedAddress = address;
+        // Function to update the NEW connect button UI
+        function updateConnectButtonUI(address) {
+            console.log("updateConnectButtonUI called. Address:", address);
+            connectedAddress = address; // Update global state
 
-            // Wrap DOM updates in setTimeout
-            setTimeout(() => {
-                console.log("Inside setTimeout for UI update. Address:", connectedAddress);
-                const connectWalletBtn = document.getElementById('connectWalletBtn');
-                const connectionStatusDiv = document.getElementById('connectionStatus');
-                console.log("Connect Button Ref inside timeout:", connectWalletBtn);
-                console.log("Status Div Ref inside timeout:", connectionStatusDiv);
+            const connectBtn = document.getElementById('newConnectBtn');
+            if (!connectBtn) {
+                console.error("New connect button not found!");
+                return;
+            }
 
-                if (!connectWalletBtn || !connectionStatusDiv) {
-                    console.error("UI elements for connection status not found inside setTimeout!");
-                    return;
-                }
-
-                if (connectedAddress) { // Check the global variable
-                    const shortAddress = `${connectedAddress.substring(0, 6)}...${connectedAddress.substring(connectedAddress.length - 4)}`;
-                    // Use textContent for simplicity
-                    connectionStatusDiv.textContent = `Connected: ${shortAddress}`;
-                    connectWalletBtn.textContent = 'Disconnect';
-                    // *** ADD VISUAL TEST: Change background color ***
-                    connectWalletBtn.style.backgroundColor = 'rgb(34 197 94)'; // Tailwind green-500
-                    console.log("UI Update Attempted inside setTimeout: Connected / Disconnect + BG Color");
-                } else { // Disconnected state
-                    userProvider = null;
-                    if (!connectWalletBtn.disabled) {
-                        connectionStatusDiv.textContent = 'Status: Not Connected';
-                        connectWalletBtn.textContent = 'Connect Wallet';
-                        // *** Reset background color on disconnect ***
-                        connectWalletBtn.style.backgroundColor = ''; // Reset to default (uses CSS classes)
-                        console.log("UI Update Attempted inside setTimeout: Not Connected / Connect Wallet");
-                    } else {
-                        connectionStatusDiv.textContent = 'Status: Not Connected (Error?)';
-                    }
-                }
-            }, 0); // Delay of 0ms
+            if (address) { // Connected state
+                const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+                connectBtn.textContent = shortAddress; // Show address on button
+                // Optionally change style when connected
+                connectBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                connectBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                console.log("Connect button UI Updated to: Address / Green BG");
+            } else { // Disconnected state
+                userProvider = null; // Clear provider
+                connectBtn.textContent = 'Connect Wallet'; // Reset button text
+                // Reset styles
+                connectBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                connectBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                console.log("Connect button UI Updated to: Connect Wallet / Blue BG");
+            }
         }
 
-        // handleConnection function using the imported 'ethers' object
+        // handleConnection function (gets provider/address) - unchanged internally
         async function handleConnection() {
              console.log("handleConnection START");
-             if (!web3modal) { /* ... error handling ... */ return; }
-             if (typeof ethers === 'undefined') { /* ... error handling ... */ return; }
-
+             if (!web3modal) { console.error("handleConnection: web3modal not ready."); return; }
+             if (typeof ethers === 'undefined') { console.error("handleConnection: ethers not ready."); return; }
              try {
-                 console.log("Attempting to get wallet provider via web3modal.getWalletProvider()...");
+                 console.log("Attempting getWalletProvider...");
                  userProvider = await web3modal.getWalletProvider();
-
                  if (userProvider) {
-                     console.log("Wallet provider obtained:", userProvider);
-                     console.log("Creating ethers.BrowserProvider...");
+                     console.log("Provider obtained.");
                      const browserProvider = new ethers.BrowserProvider(userProvider);
-                     console.log("Getting signer...");
                      const signer = await browserProvider.getSigner();
-                     console.log("Signer obtained:", signer);
-                     console.log("Getting address from signer...");
                      const address = await signer.getAddress();
-                     console.log("Obtained address via provider/signer:", address);
-                     updateUIBasedOnAddress(address);
+                     console.log("Address obtained:", address);
+                     updateConnectButtonUI(address); // Update NEW button UI
                  } else {
-                     console.log("No wallet provider found."); // Modified log slightly
-                     updateUIBasedOnAddress(null);
+                     console.log("No wallet provider found.");
+                     updateConnectButtonUI(null);
                  }
              } catch (error) {
                  console.error("Error inside handleConnection:", error);
-                 updateUIBasedOnAddress(null);
-                 const statusDiv = document.getElementById('connectionStatus');
-                 if(statusDiv) statusDiv.innerHTML = `<span class="text-red-600 font-medium">Error connecting wallet. Check console.</span>`;
+                 updateConnectButtonUI(null);
              }
              console.log("handleConnection END");
         }
@@ -227,73 +183,64 @@
                 console.log("Setting up subscribeEvents...");
                 const unsubscribeEvents = web3modal.subscribeEvents((event) => {
                     console.log("Web3Modal Event:", event.type, event.data);
-                    // Trigger on CONNECT_SUCCESS
                     if (event.type === 'CONNECT_SUCCESS') {
                          console.log("Connect success event detected.");
-                         setTimeout(handleConnection, 100); // Keep small delay after success
+                         setTimeout(handleConnection, 100);
                     }
-                     // Handle disconnect events explicitly
                      if (event.type === 'DISCONNECT_SUCCESS' || event.type === 'ACCOUNT_DISCONNECTED' || event.type === 'MODAL_CLOSE') {
-                        if (event.type === 'MODAL_CLOSE' && connectedAddress) {
-                            console.log("Modal closed while connected, no action needed.");
-                            return; // Don't reset if modal closes while connected
-                        }
+                        if (event.type === 'MODAL_CLOSE' && connectedAddress) { return; } // Don't reset if modal closes while connected
                         console.log("Disconnect or Modal Close (while disconnected) event detected.");
-                         updateUIBasedOnAddress(null); // Reset UI
+                         updateConnectButtonUI(null); // Reset UI
                      }
                 });
                 console.log("subscribeEvents setup complete.");
-                // Set initial state explicitly to "Not Connected"
-                 updateUIBasedOnAddress(null);
+                 updateConnectButtonUI(null); // Set initial UI state for the new button
             } catch (subscribeError) {
                 console.error("Error setting up subscribeEvents:", subscribeError);
-                const statusDiv = document.getElementById('connectionStatus');
-                if(statusDiv) statusDiv.innerHTML = '<span class="text-red-600 font-bold">Error setting up wallet events.</span>';
             }
         } else {
             console.error("Web3Modal instance not available for subscribeEvents setup.");
-             const statusDiv = document.getElementById('connectionStatus');
-             if(statusDiv) statusDiv.textContent = 'Status: Wallet Init Failed';
-        }
-
-        // Handle Connect/Disconnect Button Click
-        const connectBtn = document.getElementById('connectWalletBtn');
-        if(connectBtn) {
-             if (web3modal) {
-                 connectBtn.disabled = false;
-             } else {
+             const connectBtn = document.getElementById('newConnectBtn');
+             if(connectBtn) {
+                 connectBtn.textContent = 'Connect Error';
                  connectBtn.disabled = true;
              }
+        }
 
-            connectBtn.addEventListener('click', () => {
-                console.log("Connect/Disconnect button clicked. Current connectedAddress variable:", connectedAddress);
+        // Handle NEW Connect/Disconnect Button Click
+        const newConnectBtn = document.getElementById('newConnectBtn');
+        if(newConnectBtn) {
+             if (web3modal) {
+                 newConnectBtn.disabled = false;
+             } else {
+                 newConnectBtn.disabled = true;
+             }
+
+            newConnectBtn.addEventListener('click', () => {
+                console.log("NEW Connect/Disconnect button clicked. Current connectedAddress variable:", connectedAddress);
                 if (web3modal) {
                     if (connectedAddress) {
                         console.log("Calling web3modal.disconnect()");
-                        web3modal.disconnect().catch(err => { // Catch potential errors on disconnect
+                        web3modal.disconnect().catch(err => {
                             console.error("Error during disconnect:", err);
-                            updateUIBasedOnAddress(null); // Force UI reset on error
+                            updateConnectButtonUI(null); // Force UI reset on error
                         });
-                        // UI update now primarily handled by DISCONNECT_SUCCESS event
                     } else {
                         console.log("Calling web3modal.open()");
                         web3modal.open();
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open/disconnect.");
-                    const statusDiv = document.getElementById('connectionStatus');
-                    if(statusDiv) statusDiv.innerHTML = '<span class="text-red-600 font-bold">Wallet system error. Refresh maybe?</span>';
                 }
             });
         } else {
-            console.error("Connect Wallet button not found.");
+            console.error("NEW Connect Wallet button not found.");
         }
 
 
         // --- Ethers.js Provider for LOOKUPS ---
         let lookupProvider;
         try {
-            // Ensure ethers is imported before using it
             if (typeof ethers !== 'undefined') {
                  lookupProvider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
                  console.log("Lookup JsonRpcProvider initialized successfully.");
@@ -302,17 +249,16 @@
             }
         } catch (error) {
             console.error("Failed to initialize Lookup JsonRpcProvider:", error);
-            if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain lookup connection.</span>`;
+            if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Lookup connection failed.</span>`;
             if(checkButton) checkButton.disabled = true;
         }
 
 
         // --- UI Helper Function: Show Loading State ---
         function showLoading(isLoading) {
-             const btnTextEl = checkButton?.querySelector('span'); // Get span inside checkButton
-             const iconEl = document.getElementById('button-icon'); // Use specific ID
-             const spinnerEl = document.getElementById('loading-spinner'); // Use specific ID
-
+             const btnTextEl = checkButton?.querySelector('span');
+             const iconEl = document.getElementById('button-icon');
+             const spinnerEl = document.getElementById('loading-spinner');
              if (isLoading) {
                 if(btnTextEl) btnTextEl.textContent = 'Checking...';
                 if(iconEl) iconEl.classList.add('hidden');
@@ -332,18 +278,9 @@
         if(checkButton) {
             checkButton.disabled = !lookupProvider;
             checkButton.addEventListener('click', async () => {
-                // ... (rest of check button logic is unchanged) ...
                  console.log("Check button clicked.");
-                if (typeof ethers === 'undefined') {
-                     console.error("Ethers library not available for check.");
-                     if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library missing.</span>`;
-                     return;
-                }
-                 if (!lookupProvider) {
-                    console.error("Lookup provider not available for check.");
-                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain lookup connection failed.</span>`;
-                    return;
-                 }
+                if (typeof ethers === 'undefined') { /* ... error handling ... */ return; }
+                 if (!lookupProvider) { /* ... error handling ... */ return; }
                 let addressToCheck = addressInput?.value.trim();
                 if (!addressToCheck && connectedAddress) {
                      console.log("Input empty, using connected address:", connectedAddress);
