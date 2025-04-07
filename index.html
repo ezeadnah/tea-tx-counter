@@ -69,6 +69,8 @@
 
         // Import Web3Modal functions
         console.log("Attempting to import Web3Modal...");
+        // *** Import getAddress if available (might still not be exported correctly) ***
+        // We will rely on web3modal instance method if import fails
         import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
         console.log("Web3Modal import statement processed.");
 
@@ -127,10 +129,10 @@
         // --- Web3Modal State & Event Handling ---
         let connectedAddress = null; // Keep track of the address locally
 
-        // *** SIMPLIFIED: This function only updates UI for testing ***
+        // Function to update the UI based on the address
         function updateUIBasedOnAddress(address) {
             console.log("updateUIBasedOnAddress called. Address:", address);
-            connectedAddress = address; // Still update local variable
+            connectedAddress = address; // Update local variable
 
             const connectWalletBtn = document.getElementById('connectWalletBtn');
             const connectionStatusDiv = document.getElementById('connectionStatus');
@@ -139,55 +141,50 @@
                 return;
             }
 
-            // --- Test Update Logic ---
-            if (address) { // If called with a non-null address (like our test string)
-                 connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">TESTING</strong>`;
-                 connectWalletBtn.textContent = 'Disconnect (TEST)';
-                 console.log("UI Updated to: TEST Connected / Disconnect");
-            } else { // If called with null/undefined (disconnected state)
-                 if (!connectWalletBtn.disabled) {
+            // *** Restored actual UI update logic ***
+            if (address) { // Connected state
+                const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+                connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
+                connectWalletBtn.textContent = 'Disconnect';
+                console.log("UI Updated to: Connected / Disconnect");
+            } else { // Disconnected state
+                if (!connectWalletBtn.disabled) {
                     connectionStatusDiv.textContent = 'Status: Not Connected';
                     connectWalletBtn.textContent = 'Connect Wallet';
                     console.log("UI Updated to: Not Connected / Connect Wallet");
-                 } else {
+                } else {
                     connectionStatusDiv.textContent = 'Status: Not Connected (Error?)';
-                 }
+                }
             }
-            // --- End Test Update Logic ---
         }
 
-        // *** SIMPLIFIED: This function just logs and calls the UI update test ***
-        // *** NOTE: This function is NOT async anymore for this test ***
-        function handleConnection() {
-             console.log("handleConnection START (Simplified Test)");
-             if (!web3modal) {
-                 console.error("handleConnection called but web3modal not ready.");
-                 return;
-             }
-             try {
-                 console.log("Attempting direct UI update test...");
-                 updateUIBasedOnAddress("TEST_ADDRESS_PLACEHOLDER");
-                 console.log("Direct UI update test attempted.");
-             } catch (error) {
-                 console.error("Error inside simplified handleConnection:", error);
-                 updateUIBasedOnAddress(null); // Reset UI on error
-                 const statusDiv = document.getElementById('connectionStatus');
-                 if(statusDiv) statusDiv.innerHTML = `<span class="text-red-600 font-medium">Error during connection handling test.</span>`;
-             }
-             console.log("handleConnection END (Simplified Test)");
-        }
+        // *** REMOVED handleConnection function ***
 
         // Use subscribeEvents to detect modal close
         if (web3modal) {
             try {
                 console.log("Setting up subscribeEvents...");
-                // *** REMOVED async from the callback function signature ***
                 const unsubscribeEvents = web3modal.subscribeEvents((event) => {
                     console.log("Web3Modal Event:", event.type, event.data);
+                    // *** Attempt to get address directly on modal close ***
                     if (event.type === 'MODAL_CLOSE') {
-                         console.log("Modal closed event detected.");
-                         handleConnection(); // Call simplified handler directly
+                         console.log("Modal closed event detected. Attempting to get address directly...");
+                         try {
+                             // Use the getAddress method directly on the web3modal instance
+                             const currentAddress = web3modal.getAddress();
+                             console.log("Address from web3modal.getAddress():", currentAddress);
+                             // Update UI based on whether getAddress returned an address
+                             updateUIBasedOnAddress(currentAddress || null);
+                         } catch (error) {
+                             console.error("Error calling web3modal.getAddress() or updating UI:", error);
+                             updateUIBasedOnAddress(null); // Reset on error
+                         }
                     }
+                    // Optional: Handle disconnect event if needed
+                    // if (event.type === 'DISCONNECT_SUCCESS') {
+                    //    console.log("Disconnect event detected.");
+                    //    updateUIBasedOnAddress(null);
+                    // }
                 });
                 console.log("subscribeEvents setup complete.");
                 // Set initial state explicitly to "Not Connected"
@@ -204,7 +201,7 @@
         }
 
 
-        // Handle Connect/Disconnect Button Click (Logic remains the same)
+        // Handle Connect/Disconnect Button Click
         const connectBtn = document.getElementById('connectWalletBtn');
         if(connectBtn) {
              if (web3modal) {
@@ -216,10 +213,14 @@
             connectBtn.addEventListener('click', () => {
                 console.log("Connect/Disconnect button clicked. Current connectedAddress variable:", connectedAddress);
                 if (web3modal) {
-                    if (connectedAddress) { // If our test update worked, this might be "TEST_ADDRESS_PLACEHOLDER"
+                    if (connectedAddress) {
                         console.log("Calling web3modal.disconnect()");
                         web3modal.disconnect().then(() => {
-                            updateUIBasedOnAddress(null); // Reset UI after disconnect
+                            // UI update should be handled by the MODAL_CLOSE event after disconnect attempt
+                            // or potentially a DISCONNECT_SUCCESS event if subscribed
+                            console.log("Disconnect call finished.");
+                            // Force UI update just in case event doesn't fire reliably
+                            updateUIBasedOnAddress(null);
                         }).catch(err => {
                             console.error("Error during disconnect:", err);
                             updateUIBasedOnAddress(null);
@@ -227,6 +228,7 @@
                     } else {
                         console.log("Calling web3modal.open()");
                         web3modal.open();
+                        // Connection logic now handled by subscribeEvents -> getAddress
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open/disconnect.");
@@ -290,14 +292,11 @@
                     return;
                  }
                 let addressToCheck = addressInput?.value.trim();
-                if (!addressToCheck && connectedAddress && connectedAddress !== "TEST_ADDRESS_PLACEHOLDER") {
+                if (!addressToCheck && connectedAddress) {
                      console.log("Input empty, using connected address:", connectedAddress);
                      addressToCheck = connectedAddress;
                 } else if (!addressToCheck) {
                     if(resultArea) resultArea.innerHTML = `<span class="text-orange-600 font-medium">Please enter an address or connect wallet.</span>`;
-                    return;
-                } else if (addressToCheck === "TEST_ADDRESS_PLACEHOLDER") {
-                     if(resultArea) resultArea.innerHTML = `<span class="text-orange-600 font-medium">Cannot check test address. Enter real address.</span>`;
                     return;
                 }
 
