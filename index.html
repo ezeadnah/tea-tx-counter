@@ -136,24 +136,28 @@
             console.log("updateUIBasedOnAddress called. Address:", address);
             connectedAddress = address;
 
-            // *** Wrap DOM updates in setTimeout ***
+            // Wrap DOM updates in setTimeout
             setTimeout(() => {
-                console.log("Inside setTimeout for UI update. Address:", connectedAddress); // Use updated global 'connectedAddress'
+                console.log("Inside setTimeout for UI update. Address:", connectedAddress);
                 const connectWalletBtn = document.getElementById('connectWalletBtn');
                 const connectionStatusDiv = document.getElementById('connectionStatus');
+                // *** Log element references inside timeout ***
+                console.log("Connect Button Ref inside timeout:", connectWalletBtn);
+                console.log("Status Div Ref inside timeout:", connectionStatusDiv);
+
                 if (!connectWalletBtn || !connectionStatusDiv) {
                     console.error("UI elements for connection status not found inside setTimeout!");
                     return;
                 }
 
-                if (connectedAddress) { // Check the global variable updated before the timeout
+                if (connectedAddress) { // Check the global variable
                     const shortAddress = `${connectedAddress.substring(0, 6)}...${connectedAddress.substring(connectedAddress.length - 4)}`;
                     // Use textContent for simplicity
                     connectionStatusDiv.textContent = `Connected: ${shortAddress}`;
                     connectWalletBtn.textContent = 'Disconnect';
                     console.log("UI Update Attempted inside setTimeout: Connected / Disconnect");
                 } else { // Disconnected state
-                    userProvider = null; // Clear provider on disconnect
+                    userProvider = null;
                     if (!connectWalletBtn.disabled) {
                         connectionStatusDiv.textContent = 'Status: Not Connected';
                         connectWalletBtn.textContent = 'Connect Wallet';
@@ -162,7 +166,7 @@
                         connectionStatusDiv.textContent = 'Status: Not Connected (Error?)';
                     }
                 }
-            }, 0); // Delay of 0ms pushes execution to end of event queue
+            }, 0); // Delay of 0ms
         }
 
         // handleConnection function using the imported 'ethers' object
@@ -192,10 +196,9 @@
                      console.log("Getting address from signer...");
                      const address = await signer.getAddress();
                      console.log("Obtained address via provider/signer:", address);
-                     // Call UI update function with the obtained address
                      updateUIBasedOnAddress(address);
                  } else {
-                     console.log("No wallet provider found after modal close.");
+                     console.log("No wallet provider found."); // Modified log slightly
                      updateUIBasedOnAddress(null);
                  }
              } catch (error) {
@@ -207,19 +210,29 @@
              console.log("handleConnection END");
         }
 
-        // Use subscribeEvents to detect modal close
+        // Use subscribeEvents to detect connection and disconnection
         if (web3modal) {
             try {
                 console.log("Setting up subscribeEvents...");
                 const unsubscribeEvents = web3modal.subscribeEvents((event) => {
                     console.log("Web3Modal Event:", event.type, event.data);
-                    if (event.type === 'MODAL_CLOSE') {
-                         console.log("Modal closed event detected.");
-                         handleConnection(); // Call the handler
+                    // *** Trigger on CONNECT_SUCCESS instead of MODAL_CLOSE ***
+                    if (event.type === 'CONNECT_SUCCESS') {
+                         console.log("Connect success event detected.");
+                         // Add a small delay in case provider isn't ready *immediately*
+                         setTimeout(handleConnection, 100);
                     }
-                     if (event.type === 'DISCONNECT_SUCCESS' || event.type === 'ACCOUNT_DISCONNECTED') {
-                        console.log("Disconnect event detected.");
-                        updateUIBasedOnAddress(null);
+                     // Handle disconnect events explicitly
+                     if (event.type === 'DISCONNECT_SUCCESS' || event.type === 'ACCOUNT_DISCONNECTED' || event.type === 'MODAL_CLOSE') {
+                        // Also check on modal close if not already connected, in case connect fails but modal closes
+                        if (event.type === 'MODAL_CLOSE' && connectedAddress) {
+                            console.log("Modal closed while connected, no action needed.");
+                            return;
+                        }
+                        console.log("Disconnect or Modal Close (while disconnected) event detected.");
+                        // Check if still connected (getAddress might be stale briefly after disconnect)
+                        // Better to just assume disconnected on these events
+                         updateUIBasedOnAddress(null);
                      }
                 });
                 console.log("subscribeEvents setup complete.");
@@ -250,16 +263,15 @@
                 if (web3modal) {
                     if (connectedAddress) {
                         console.log("Calling web3modal.disconnect()");
-                        web3modal.disconnect().then(() => {
-                            console.log("Disconnect call finished successfully.");
-                            // UI update should be handled by subscribeEvents now
-                        }).catch(err => {
+                        web3modal.disconnect().catch(err => { // Catch potential errors on disconnect
                             console.error("Error during disconnect:", err);
-                            updateUIBasedOnAddress(null); // Reset UI on error
+                            updateUIBasedOnAddress(null); // Force UI reset on error
                         });
+                        // UI update now primarily handled by DISCONNECT_SUCCESS event
                     } else {
                         console.log("Calling web3modal.open()");
                         web3modal.open();
+                        // Connection logic handled by subscribeEvents -> CONNECT_SUCCESS -> handleConnection
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open/disconnect.");
