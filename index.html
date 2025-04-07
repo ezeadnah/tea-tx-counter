@@ -69,8 +69,6 @@
 
         // Import Web3Modal functions
         console.log("Attempting to import Web3Modal...");
-        // *** Import getAddress if available (might still not be exported correctly) ***
-        // We will rely on web3modal instance method if import fails
         import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
         console.log("Web3Modal import statement processed.");
 
@@ -128,6 +126,7 @@
 
         // --- Web3Modal State & Event Handling ---
         let connectedAddress = null; // Keep track of the address locally
+        let userProvider = null; // Keep track of the connected provider
 
         // Function to update the UI based on the address
         function updateUIBasedOnAddress(address) {
@@ -141,13 +140,13 @@
                 return;
             }
 
-            // *** Restored actual UI update logic ***
             if (address) { // Connected state
                 const shortAddress = `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
                 connectionStatusDiv.innerHTML = `Connected: <strong class="font-medium">${shortAddress}</strong>`;
                 connectWalletBtn.textContent = 'Disconnect';
                 console.log("UI Updated to: Connected / Disconnect");
             } else { // Disconnected state
+                userProvider = null; // Clear provider on disconnect
                 if (!connectWalletBtn.disabled) {
                     connectionStatusDiv.textContent = 'Status: Not Connected';
                     connectWalletBtn.textContent = 'Connect Wallet';
@@ -158,7 +157,51 @@
             }
         }
 
-        // *** REMOVED handleConnection function ***
+        // *** RESTORED handleConnection function with DETAILED LOGGING ***
+        async function handleConnection() {
+             console.log("handleConnection START"); // Log entry
+             if (!web3modal) {
+                 console.error("handleConnection called but web3modal not ready.");
+                 return;
+             }
+             // Explicitly check for ethers global object availability HERE
+             if (typeof ethers === 'undefined') {
+                 console.error("Ethers.js global object not available in handleConnection!");
+                 updateUIBasedOnAddress(null); // Reset UI
+                 return;
+             }
+
+             try { // Wrap the entire async operation
+                 console.log("Attempting to get wallet provider via web3modal.getWalletProvider()...");
+                 userProvider = await web3modal.getWalletProvider(); // EIP-1193 provider
+
+                 if (userProvider) {
+                     console.log("Wallet provider obtained:", userProvider); // Log success
+
+                     console.log("Creating ethers.BrowserProvider...");
+                     const browserProvider = new ethers.BrowserProvider(userProvider); // Wrap provider
+
+                     console.log("Getting signer...");
+                     const signer = await browserProvider.getSigner(); // Get signer
+                     console.log("Signer obtained:", signer);
+
+                     console.log("Getting address from signer...");
+                     const address = await signer.getAddress(); // Get address
+                     console.log("Obtained address via provider/signer:", address);
+
+                     updateUIBasedOnAddress(address); // Update UI with the fetched address
+                 } else {
+                     console.log("No wallet provider found after modal close (likely disconnected or closed without selection).");
+                     updateUIBasedOnAddress(null); // Ensure UI reflects disconnection
+                 }
+             } catch (error) {
+                 console.error("Error inside handleConnection:", error); // Log specific error
+                 updateUIBasedOnAddress(null); // Reset UI on error
+                 const statusDiv = document.getElementById('connectionStatus');
+                 if(statusDiv) statusDiv.innerHTML = `<span class="text-red-600 font-medium">Error connecting wallet. Check console.</span>`;
+             }
+             console.log("handleConnection END"); // Log exit
+        }
 
         // Use subscribeEvents to detect modal close
         if (web3modal) {
@@ -166,25 +209,16 @@
                 console.log("Setting up subscribeEvents...");
                 const unsubscribeEvents = web3modal.subscribeEvents((event) => {
                     console.log("Web3Modal Event:", event.type, event.data);
-                    // *** Attempt to get address directly on modal close ***
                     if (event.type === 'MODAL_CLOSE') {
-                         console.log("Modal closed event detected. Attempting to get address directly...");
-                         try {
-                             // Use the getAddress method directly on the web3modal instance
-                             const currentAddress = web3modal.getAddress();
-                             console.log("Address from web3modal.getAddress():", currentAddress);
-                             // Update UI based on whether getAddress returned an address
-                             updateUIBasedOnAddress(currentAddress || null);
-                         } catch (error) {
-                             console.error("Error calling web3modal.getAddress() or updating UI:", error);
-                             updateUIBasedOnAddress(null); // Reset on error
-                         }
+                         console.log("Modal closed event detected.");
+                         // Call the restored async handler
+                         handleConnection();
                     }
-                    // Optional: Handle disconnect event if needed
-                    // if (event.type === 'DISCONNECT_SUCCESS') {
-                    //    console.log("Disconnect event detected.");
-                    //    updateUIBasedOnAddress(null);
-                    // }
+                     // Optional: Handle disconnect event explicitly if needed
+                     if (event.type === 'DISCONNECT_SUCCESS' || event.type === 'ACCOUNT_DISCONNECTED') { // Check potential event names
+                        console.log("Disconnect event detected.");
+                        updateUIBasedOnAddress(null);
+                     }
                 });
                 console.log("subscribeEvents setup complete.");
                 // Set initial state explicitly to "Not Connected"
@@ -199,7 +233,6 @@
              const statusDiv = document.getElementById('connectionStatus');
              if(statusDiv) statusDiv.textContent = 'Status: Wallet Init Failed';
         }
-
 
         // Handle Connect/Disconnect Button Click
         const connectBtn = document.getElementById('connectWalletBtn');
@@ -216,19 +249,18 @@
                     if (connectedAddress) {
                         console.log("Calling web3modal.disconnect()");
                         web3modal.disconnect().then(() => {
-                            // UI update should be handled by the MODAL_CLOSE event after disconnect attempt
-                            // or potentially a DISCONNECT_SUCCESS event if subscribed
-                            console.log("Disconnect call finished.");
-                            // Force UI update just in case event doesn't fire reliably
+                            // Explicitly update UI after disconnect promise resolves
+                            // (subscribeEvents might also catch it, but this ensures it)
+                            console.log("Disconnect call finished successfully.");
                             updateUIBasedOnAddress(null);
                         }).catch(err => {
                             console.error("Error during disconnect:", err);
-                            updateUIBasedOnAddress(null);
+                            updateUIBasedOnAddress(null); // Still attempt to update UI
                         });
                     } else {
                         console.log("Calling web3modal.open()");
                         web3modal.open();
-                        // Connection logic now handled by subscribeEvents -> getAddress
+                        // Connection logic handled by subscribeEvents -> handleConnection
                     }
                 } else {
                     console.error("Web3Modal not initialized, cannot open/disconnect.");
