@@ -5,393 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tea Protocol - Transaction Counter (Tea Sepolia Testnet)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module" src="https://esm.sh/@web3modal/ethers@4.1.10"></script>
+    <script type="module">
+      import { ethers } from 'https://esm.sh/ethers@6.11.1';
+      import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
 
+      const projectId = '44e9663828baee914c5165ae2ee07cc1';
+      const teaSepolia = {
+        chainId: 10218,
+        name: 'Tea Sepolia',
+        currency: 'TEA',
+        explorerUrl: 'https://sepolia.tea.xyz',
+        rpcUrl: 'https://tea-sepolia.g.alchemy.com/public'
+      };
+      const metadata = {
+        name: 'Tea TX Counter',
+        description: 'Check transaction counts on Tea Sepolia',
+        url: window.location.href,
+        icons: ['https://placehold.co/60x60/indigo/white?text=TEA']
+      };
+
+      const ethersConfig = defaultConfig({ metadata });
+      const web3modal = createWeb3Modal({
+        ethersConfig,
+        chains: [teaSepolia],
+        projectId,
+        enableAnalytics: false
+      });
+
+      const provider = new ethers.JsonRpcProvider(teaSepolia.rpcUrl);
+      let connectedAddress = null;
+
+      const connectBtn = document.getElementById('connectWalletBtn');
+      const checkBtn = document.getElementById('checkButton');
+      const status = document.getElementById('connectionStatus');
+      const input = document.getElementById('walletAddress');
+      const result = document.getElementById('resultArea');
+
+      web3modal.subscribeEvents(async (event) => {
+        if (event.type === 'CONNECT_SUCCESS') {
+          const walletProvider = await web3modal.getWalletProvider();
+          const browserProvider = new ethers.BrowserProvider(walletProvider);
+          const signer = await browserProvider.getSigner();
+          connectedAddress = await signer.getAddress();
+          input.value = connectedAddress;
+          status.textContent = `Connected: ${connectedAddress.slice(0, 6)}...${connectedAddress.slice(-4)}`;
+          connectBtn.textContent = 'Disconnect';
+        } else if (event.type === 'DISCONNECT_SUCCESS') {
+          connectedAddress = null;
+          input.value = '';
+          status.textContent = 'Status: Not Connected';
+          connectBtn.textContent = 'Connect Wallet';
+        }
+      });
+
+      connectBtn.addEventListener('click', async () => {
+        if (connectedAddress) {
+          await web3modal.disconnect();
+        } else {
+          web3modal.open();
+        }
+      });
+
+      checkBtn.addEventListener('click', async () => {
+        const address = input.value.trim();
+        if (!ethers.isAddress(address)) {
+          result.textContent = 'Invalid address';
+          return;
+        }
+        result.textContent = 'Fetching...';
+        try {
+          const count = await provider.getTransactionCount(address);
+          result.innerHTML = `<span class="font-semibold text-gray-700">Transaction Count:</span> <span class="text-indigo-600 font-bold">${count}</span>`;
+        } catch (err) {
+          result.textContent = 'Error fetching transaction count';
+          console.error(err);
+        }
+      });
+    </script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        html { background-color: #f7fafc; }
-        #connectWalletBtn { white-space: nowrap; }
+      body { font-family: 'Inter', sans-serif; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-
-    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-lg">
-        <div class="text-center mb-4">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Tea Protocol</h1>
-            <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mt-1">Transaction Counter</h2>
-            <p class="text-sm text-gray-500 mt-2">Check transaction count (nonce) on Tea Sepolia</p>
-        </div>
-
-        <div class="text-center mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <button id="connectWalletBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out text-sm">
-                Connect Wallet
-            </button>
-            <div id="connectionStatus" class="text-xs text-gray-600 mt-2 truncate">
-                Status: Initializing...
-            </div>
-        </div>
-        <div class="mb-4">
-            <label for="walletAddress" class="block text-sm font-medium text-gray-700 mb-1">Wallet Address to Check</label>
-            <input type="text" id="walletAddress" name="walletAddress" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter Tea Sepolia address or connect wallet">
-        </div>
-
-        <div class="mb-6">
-            <button id="checkButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out flex items-center justify-center space-x-2">
-                <svg id="button-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <span>Check Transaction Count</span>
-                <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-            </button>
-        </div>
-
-        <div id="resultArea" class="text-center p-4 bg-gray-50 rounded-lg min-h-[60px] flex items-center justify-center border border-gray-200">
-            <span class="text-gray-500">Enter an address and click check.</span>
-        </div>
-
-        <div id="explorerLinkArea" class="text-center mt-4 text-sm min-h-[20px]">
-            </div>
+  <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-lg">
+    <div class="text-center mb-4">
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Tea Protocol</h1>
+      <h2 class="text-xl sm:text-2xl font-semibold text-gray-700 mt-1">Transaction Counter</h2>
+      <p class="text-sm text-gray-500 mt-2">Check transaction count (nonce) on Tea Sepolia</p>
     </div>
-
-    <script type="module">
-        // --- Global Error Handlers ---
-        window.addEventListener('error', function(event) {
-            console.error('Global Error:', event.message, event.filename, event.lineno, event.colno, event.error);
-        });
-        window.addEventListener('unhandledrejection', function(event) {
-            console.error('Unhandled Promise Rejection:', event.reason);
-        });
-
-        // Import ethers and Web3Modal functions as modules
-        console.log("Attempting to import ethers...");
-        import { ethers } from 'https://esm.sh/ethers@6.11.1';
-        console.log("ethers import statement processed.");
-
-        console.log("Attempting to import Web3Modal...");
-        import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.10';
-        console.log("Web3Modal import statement processed.");
-
-        // --- DOM Element References ---
-        const addressInput = document.getElementById('walletAddress');
-        const checkButton = document.getElementById('checkButton');
-        const resultArea = document.getElementById('resultArea');
-        const explorerLinkArea = document.getElementById('explorerLinkArea');
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const buttonIcon = document.getElementById('button-icon');
-        const buttonText = checkButton?.querySelector('span');
-        // Connect button and status div references fetched inside update function
-
-        // --- Configuration ---
-        const TEA_SEPOLIA_RPC_URL = 'https://tea-sepolia.g.alchemy.com/public';
-        const TEA_EXPLORER_BASE_URL = 'https://sepolia.tea.xyz';
-        const projectId = '44e9663828baee914c5165ae2ee07cc1';
-
-        const initialStatusDiv = document.getElementById('connectionStatus');
-        if (!projectId && initialStatusDiv) {
-            console.error("WalletConnect Project ID is missing!");
-            initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Setup Error: Missing Project ID!</span>';
-        }
-
-        const teaSepolia = {
-            chainId: 10218, name: 'Tea Sepolia', currency: 'TEA',
-            explorerUrl: TEA_EXPLORER_BASE_URL, rpcUrl: TEA_SEPOLIA_RPC_URL
-        };
-        const metadata = {
-            name: 'Tea TX Counter', description: 'Check transaction counts on Tea Sepolia',
-            url: window.location.href, icons: ['https://placehold.co/60x60/indigo/white?text=TEA']
-        };
-
-        // --- Web3Modal Initialization ---
-        let web3modal;
-        try {
-            console.log("Initializing ethersConfig...");
-            const ethersConfig = defaultConfig({ metadata });
-            console.log("Initializing createWeb3Modal...");
-            web3modal = createWeb3Modal({
-                ethersConfig, chains: [teaSepolia], projectId,
-                enableAnalytics: true, themeMode: 'light',
-                themeVariables: {
-                    '--w3m-color-mix': '#6366F1', '--w3m-color-mix-strength': 40,
-                    '--w3m-border-radius-master': '8px',
-                }
-            });
-            console.log("Web3Modal instance created successfully.");
-        } catch (initError) {
-            console.error("Error during Web3Modal initialization:", initError);
-            if(initialStatusDiv) initialStatusDiv.innerHTML = '<span class="text-red-600 font-bold">Error: Failed to init WalletConnect. Check console.</span>';
-            const connectBtn = document.getElementById('connectWalletBtn');
-            if(connectBtn) connectBtn.disabled = true;
-        }
-
-        // --- Web3Modal State & Event Handling ---
-        let connectedAddress = null;
-        let userProvider = null;
-
-        // Function to update the UI based on the address
-        function updateUIBasedOnAddress(address) {
-            console.log("updateUIBasedOnAddress called. Address:", address);
-            connectedAddress = address;
-
-            // Wrap DOM updates in setTimeout
-            setTimeout(() => {
-                console.log("Inside setTimeout for UI update. Address:", connectedAddress);
-                const connectWalletBtn = document.getElementById('connectWalletBtn');
-                const connectionStatusDiv = document.getElementById('connectionStatus');
-                // *** Log element references inside timeout ***
-                console.log("Connect Button Ref inside timeout:", connectWalletBtn);
-                console.log("Status Div Ref inside timeout:", connectionStatusDiv);
-
-                if (!connectWalletBtn || !connectionStatusDiv) {
-                    console.error("UI elements for connection status not found inside setTimeout!");
-                    return;
-                }
-
-                if (connectedAddress) { // Check the global variable
-                    const shortAddress = `${connectedAddress.substring(0, 6)}...${connectedAddress.substring(connectedAddress.length - 4)}`;
-                    // Use textContent for simplicity
-                    connectionStatusDiv.textContent = `Connected: ${shortAddress}`;
-                    connectWalletBtn.textContent = 'Disconnect';
-                    console.log("UI Update Attempted inside setTimeout: Connected / Disconnect");
-                } else { // Disconnected state
-                    userProvider = null;
-                    if (!connectWalletBtn.disabled) {
-                        connectionStatusDiv.textContent = 'Status: Not Connected';
-                        connectWalletBtn.textContent = 'Connect Wallet';
-                        console.log("UI Update Attempted inside setTimeout: Not Connected / Connect Wallet");
-                    } else {
-                        connectionStatusDiv.textContent = 'Status: Not Connected (Error?)';
-                    }
-                }
-            }, 0); // Delay of 0ms
-        }
-
-        // handleConnection function using the imported 'ethers' object
-        async function handleConnection() {
-             console.log("handleConnection START");
-             if (!web3modal) {
-                 console.error("handleConnection called but web3modal not ready.");
-                 return;
-             }
-             if (typeof ethers === 'undefined') {
-                 console.error("Imported ethers object not available in handleConnection!");
-                 updateUIBasedOnAddress(null);
-                 return;
-             }
-
-             try {
-                 console.log("Attempting to get wallet provider via web3modal.getWalletProvider()...");
-                 userProvider = await web3modal.getWalletProvider();
-
-                 if (userProvider) {
-                     console.log("Wallet provider obtained:", userProvider);
-                     console.log("Creating ethers.BrowserProvider...");
-                     const browserProvider = new ethers.BrowserProvider(userProvider);
-                     console.log("Getting signer...");
-                     const signer = await browserProvider.getSigner();
-                     console.log("Signer obtained:", signer);
-                     console.log("Getting address from signer...");
-                     const address = await signer.getAddress();
-                     console.log("Obtained address via provider/signer:", address);
-                     updateUIBasedOnAddress(address);
-                 } else {
-                     console.log("No wallet provider found."); // Modified log slightly
-                     updateUIBasedOnAddress(null);
-                 }
-             } catch (error) {
-                 console.error("Error inside handleConnection:", error);
-                 updateUIBasedOnAddress(null);
-                 const statusDiv = document.getElementById('connectionStatus');
-                 if(statusDiv) statusDiv.innerHTML = `<span class="text-red-600 font-medium">Error connecting wallet. Check console.</span>`;
-             }
-             console.log("handleConnection END");
-        }
-
-        // Use subscribeEvents to detect connection and disconnection
-        if (web3modal) {
-            try {
-                console.log("Setting up subscribeEvents...");
-                const unsubscribeEvents = web3modal.subscribeEvents((event) => {
-                    console.log("Web3Modal Event:", event.type, event.data);
-                    // *** Trigger on CONNECT_SUCCESS instead of MODAL_CLOSE ***
-                    if (event.type === 'CONNECT_SUCCESS') {
-                         console.log("Connect success event detected.");
-                         // Add a small delay in case provider isn't ready *immediately*
-                         setTimeout(handleConnection, 100);
-                    }
-                     // Handle disconnect events explicitly
-                     if (event.type === 'DISCONNECT_SUCCESS' || event.type === 'ACCOUNT_DISCONNECTED' || event.type === 'MODAL_CLOSE') {
-                        // Also check on modal close if not already connected, in case connect fails but modal closes
-                        if (event.type === 'MODAL_CLOSE' && connectedAddress) {
-                            console.log("Modal closed while connected, no action needed.");
-                            return;
-                        }
-                        console.log("Disconnect or Modal Close (while disconnected) event detected.");
-                        // Check if still connected (getAddress might be stale briefly after disconnect)
-                        // Better to just assume disconnected on these events
-                         updateUIBasedOnAddress(null);
-                     }
-                });
-                console.log("subscribeEvents setup complete.");
-                // Set initial state explicitly to "Not Connected"
-                 updateUIBasedOnAddress(null);
-            } catch (subscribeError) {
-                console.error("Error setting up subscribeEvents:", subscribeError);
-                const statusDiv = document.getElementById('connectionStatus');
-                if(statusDiv) statusDiv.innerHTML = '<span class="text-red-600 font-bold">Error setting up wallet events.</span>';
-            }
-        } else {
-            console.error("Web3Modal instance not available for subscribeEvents setup.");
-             const statusDiv = document.getElementById('connectionStatus');
-             if(statusDiv) statusDiv.textContent = 'Status: Wallet Init Failed';
-        }
-
-        // Handle Connect/Disconnect Button Click
-        const connectBtn = document.getElementById('connectWalletBtn');
-        if(connectBtn) {
-             if (web3modal) {
-                 connectBtn.disabled = false;
-             } else {
-                 connectBtn.disabled = true;
-             }
-
-            connectBtn.addEventListener('click', () => {
-                console.log("Connect/Disconnect button clicked. Current connectedAddress variable:", connectedAddress);
-                if (web3modal) {
-                    if (connectedAddress) {
-                        console.log("Calling web3modal.disconnect()");
-                        web3modal.disconnect().catch(err => { // Catch potential errors on disconnect
-                            console.error("Error during disconnect:", err);
-                            updateUIBasedOnAddress(null); // Force UI reset on error
-                        });
-                        // UI update now primarily handled by DISCONNECT_SUCCESS event
-                    } else {
-                        console.log("Calling web3modal.open()");
-                        web3modal.open();
-                        // Connection logic handled by subscribeEvents -> CONNECT_SUCCESS -> handleConnection
-                    }
-                } else {
-                    console.error("Web3Modal not initialized, cannot open/disconnect.");
-                    const statusDiv = document.getElementById('connectionStatus');
-                    if(statusDiv) statusDiv.innerHTML = '<span class="text-red-600 font-bold">Wallet system error. Refresh maybe?</span>';
-                }
-            });
-        } else {
-            console.error("Connect Wallet button not found.");
-        }
-
-
-        // --- Ethers.js Provider for LOOKUPS ---
-        let lookupProvider;
-        try {
-            if (typeof ethers !== 'undefined') {
-                 lookupProvider = new ethers.JsonRpcProvider(TEA_SEPOLIA_RPC_URL);
-                 console.log("Lookup JsonRpcProvider initialized successfully.");
-            } else {
-                 throw new Error("Ethers library not imported correctly for lookup provider.");
-            }
-        } catch (error) {
-            console.error("Failed to initialize Lookup JsonRpcProvider:", error);
-            if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Could not initialize blockchain lookup connection.</span>`;
-            if(checkButton) checkButton.disabled = true;
-        }
-
-
-        // --- UI Helper Function: Show Loading State ---
-        function showLoading(isLoading) {
-             if (isLoading) {
-                if(buttonText) buttonText.textContent = 'Checking...';
-                if(buttonIcon) buttonIcon.classList.add('hidden');
-                if(loadingSpinner) loadingSpinner.classList.remove('hidden');
-                if(checkButton) checkButton.disabled = true;
-                if(resultArea) resultArea.innerHTML = `<span class="text-gray-500">Fetching data...</span>`;
-                if(explorerLinkArea) explorerLinkArea.innerHTML = '';
-            } else {
-                if(buttonText) buttonText.textContent = 'Check Transaction Count';
-                if(buttonIcon) buttonIcon.classList.remove('hidden');
-                if(loadingSpinner) loadingSpinner.classList.add('hidden');
-                if(checkButton) checkButton.disabled = false;
-            }
-        }
-
-        // --- Main Logic: Check Button Click ---
-        if(checkButton) {
-            checkButton.disabled = !lookupProvider;
-            checkButton.addEventListener('click', async () => {
-                // ... (rest of check button logic is unchanged) ...
-                 console.log("Check button clicked.");
-                if (typeof ethers === 'undefined') {
-                     console.error("Ethers library not available for check.");
-                     if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library missing.</span>`;
-                     return;
-                }
-                 if (!lookupProvider) {
-                    console.error("Lookup provider not available for check.");
-                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain lookup connection failed.</span>`;
-                    return;
-                 }
-                let addressToCheck = addressInput?.value.trim();
-                if (!addressToCheck && connectedAddress) {
-                     console.log("Input empty, using connected address:", connectedAddress);
-                     addressToCheck = connectedAddress;
-                } else if (!addressToCheck) {
-                    if(resultArea) resultArea.innerHTML = `<span class="text-orange-600 font-medium">Please enter an address or connect wallet.</span>`;
-                    return;
-                }
-
-                if(resultArea) resultArea.innerHTML = '';
-                if(explorerLinkArea) explorerLinkArea.innerHTML = '';
-                if (!ethers.isAddress(addressToCheck)) {
-                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Invalid address format.</span>`;
-                    return;
-                }
-                showLoading(true);
-                try {
-                    const txCount = await lookupProvider.getTransactionCount(addressToCheck);
-                    const shortAddressChecked = `${addressToCheck.substring(0, 6)}...${addressToCheck.substring(addressToCheck.length - 4)}`;
-                    if(resultArea) resultArea.innerHTML = `
-                        <span class="text-lg font-semibold text-gray-800">Transaction Count:</span>
-                        <span class="text-lg font-bold text-indigo-600 ml-2">${txCount.toString()}</span>
-                        <p class="text-xs text-gray-500 mt-1">(Address: ${shortAddressChecked})</p>
-                    `;
-                    const explorerUrl = `${TEA_EXPLORER_BASE_URL}/address/${addressToCheck}`;
-                    if(explorerLinkArea) explorerLinkArea.innerHTML = `
-                        <a href="${explorerUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 hover:underline">
-                            View on Tea Sepolia Explorer
-                        </a>
-                    `;
-                    console.log(`Successfully fetched tx count for ${shortAddressChecked}: ${txCount}`);
-                } catch (error) {
-                    console.error(`Error fetching tx count for ${addressToCheck}:`, error);
-                    const shortAddressChecked = addressToCheck ? `${addressToCheck.substring(0, 6)}...` : '';
-                    if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error fetching data for ${shortAddressChecked}. Check console.</span>`;
-                    if(explorerLinkArea) explorerLinkArea.innerHTML = '';
-                    if (error.message.includes("provider") || error.message.includes("NetworkError") || (error.code && error.code === 'NETWORK_ERROR') || (error.message && error.message.includes('fetch failed'))) {
-                         if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Network issue reaching RPC for lookup.</span>`;
-                    } else if (error instanceof ReferenceError) {
-                         if(resultArea) resultArea.innerHTML = `<span class="text-red-600 font-medium">Error: Blockchain library issue during lookup.</span>`;
-                    }
-                } finally {
-                    showLoading(false);
-                }
-            });
-        } else {
-             console.error("Check button not found.");
-        }
-
-        // --- Enhancement: Allow Enter Key in Input ---
-        if(addressInput) {
-            addressInput.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') {
-                    if(checkButton && !checkButton.disabled) checkButton.click();
-                }
-            });
-        }
-
-    </script>
-
+    <div class="text-center mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+      <button id="connectWalletBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">Connect Wallet</button>
+      <div id="connectionStatus" class="text-xs text-gray-600 mt-2">Status: Not Connected</div>
+    </div>
+    <div class="mb-4">
+      <label for="walletAddress" class="block text-sm font-medium text-gray-700 mb-1">Wallet Address to Check</label>
+      <input type="text" id="walletAddress" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Enter Tea Sepolia address or connect wallet">
+    </div>
+    <div class="mb-6">
+      <button id="checkButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md flex items-center justify-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+        <span>Check Transaction Count</span>
+      </button>
+    </div>
+    <div id="resultArea" class="text-center p-4 bg-gray-50 rounded-lg min-h-[60px] flex items-center justify-center border border-gray-200">
+      <span class="text-gray-500">Enter an address and click check.</span>
+    </div>
+  </div>
 </body>
 </html>
